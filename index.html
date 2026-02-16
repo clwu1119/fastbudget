@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>FinanceFlow Ultra v10</title>
+    <title>FinanceFlow Ultra v10.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -18,7 +18,6 @@
         .glass-card { background: var(--m-card); border-radius: 28px; border: 0.5px solid rgba(255,255,255,0.1); }
         .nav-bar { background: rgba(20, 20, 22, 0.9); backdrop-filter: saturate(180%) blur(20px); border-top: 0.5px solid rgba(255,255,255,0.1); padding-bottom: env(safe-area-inset-bottom); }
         
-        /* 格式化輸入框容器 */
         .fmt-input-container { position: relative; width: 100%; display: flex; align-items: center; }
         .fmt-display { position: absolute; left: 0; pointer-events: none; width: 100%; color: white; }
         .real-input { background: transparent; color: transparent; caret-color: white; width: 100%; outline: none; }
@@ -63,11 +62,11 @@
             <div class="grid grid-cols-4 gap-2" id="cat-grid"></div>
 
             <div class="space-y-3">
-                <div class="w-full bg-zinc-800/40 rounded-2xl border border-white/5 flex items-center px-4 overflow-hidden">
+                <div class="w-full bg-zinc-800/40 rounded-2xl border border-white/5 flex items-center px-4">
                     <i class="fa-regular fa-calendar text-zinc-500 mr-3"></i>
                     <input type="date" id="entry-date" class="bg-transparent py-4 text-white w-full outline-none text-lg">
                 </div>
-                <div class="w-full bg-zinc-800/40 rounded-2xl border border-white/5 flex items-center px-4 overflow-hidden">
+                <div class="w-full bg-zinc-800/40 rounded-2xl border border-white/5 flex items-center px-4">
                     <i class="fa-solid fa-pen-to-square text-zinc-500 mr-3"></i>
                     <input type="text" id="note" placeholder="備註..." class="bg-transparent py-4 text-white w-full outline-none text-lg">
                 </div>
@@ -120,11 +119,11 @@
         </div>
 
         <div class="space-y-3 pb-40">
-            <button onclick="exportData()" class="w-full py-4 rounded-2xl bg-zinc-900 text-zinc-500 font-bold text-sm border border-white/5">
-                <i class="fa-solid fa-file-export mr-2"></i>匯出 JSON 備份
+            <button onclick="exportJSON()" class="w-full py-4 rounded-2xl bg-zinc-900 text-zinc-400 font-bold text-sm border border-white/5">
+                <i class="fa-solid fa-code mr-2"></i>匯出 JSON 備份 (開發用)
             </button>
-            <button onclick="alert('請複製下方 JSON 至 Notion 表格')" class="w-full py-4 rounded-2xl bg-zinc-900 text-zinc-500 font-bold text-sm border border-white/5">
-                <i class="fa-solid fa-paper-plane mr-2"></i>同步至 Notion
+            <button onclick="exportCSV()" class="w-full py-4 rounded-2xl bg-zinc-900 text-blue-400 font-bold text-sm border border-blue-900/30">
+                <i class="fa-solid fa-file-csv mr-2"></i>匯出 CSV 備份 (直入 Notion/Excel)
             </button>
         </div>
     </section>
@@ -138,7 +137,7 @@
     <script>
         const CATS = ['飲食', '交通', '購物', '娛樂', '住宿', '台股', '美股', '其他'];
         let selCat = CATS[0], viewM = new Date().getMonth(), editM = null, chartObj = null;
-        let state = JSON.parse(localStorage.getItem('fin_v10')) || {
+        let state = JSON.parse(localStorage.getItem('fin_v10_1')) || {
             records: [], budgets: Array(12).fill().map(() => ({ life: 15000000, tw: 20000, us: 300 }))
         };
 
@@ -201,7 +200,6 @@
             document.getElementById('fmt-amt').innerText = '0';
             document.getElementById('note').value = '';
             refreshAllData();
-            // 不顯示 Alert，增加流暢感
         }
 
         function renderChartPage() {
@@ -217,7 +215,6 @@
             const sum = {};
             lifeD.forEach(r => sum[r.c] = (sum[r.c]||0) + r.v);
 
-            // 顯示佔比列表
             document.getElementById('cat-ratios').innerHTML = Object.keys(sum).map(c => `
                 <div class="bg-zinc-900 p-3 rounded-xl border border-white/5 flex justify-between">
                     <span class="text-zinc-500">${c}</span>
@@ -273,10 +270,43 @@
             save(); document.getElementById('edit-box').classList.add('hidden'); refreshAllData();
         }
 
-        function save() { localStorage.setItem('fin_v10', JSON.stringify(state)); }
-        function exportData() {
+        function save() { localStorage.setItem('fin_v10_1', JSON.stringify(state)); }
+
+        function exportJSON() {
             const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Finance_Backup.json`; a.click();
+        }
+
+        // 新增：CSV 匯出邏輯
+        function exportCSV() {
+            if (state.records.length === 0) {
+                alert("目前沒有紀錄可匯出");
+                return;
+            }
+            
+            // 定義表頭
+            let csvContent = "\uFEFF"; // 加入 BOM 確保 Excel 不亂碼
+            csvContent += "日期,類別,金額,幣別,備註\n";
+            
+            // 填入資料
+            state.records.forEach(r => {
+                let row = [
+                    r.d,
+                    r.c,
+                    r.v,
+                    r.cur,
+                    `"${r.n || ''}"` // 備註用雙引號包起來防止逗號衝突
+                ].join(",");
+                csvContent += row + "\n";
+            });
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Finance_Flow_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         init();
